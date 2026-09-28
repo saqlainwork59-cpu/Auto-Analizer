@@ -4,3 +4,5 @@ __pycache__
 .env
 model_store
 tests/__pycache__
+frontend
+*.rdb

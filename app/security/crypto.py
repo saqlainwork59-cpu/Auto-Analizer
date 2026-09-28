@@ -22,7 +22,12 @@ def _fernet() -> Fernet:
             raise EncryptionUnavailable("ENCRYPTION_KEY is not configured")
         # Development only: derive a stable key from SECRET_KEY so local setups work.
         key = base64.urlsafe_b64encode(hashlib.sha256(("enc:" + settings.secret_key).encode()).digest()).decode()
-    return Fernet(key.encode() if isinstance(key, str) else key)
+    try:
+        return Fernet(key.encode() if isinstance(key, str) else key)
+    except (ValueError, TypeError):
+        # Any other high-entropy string (e.g. a platform-generated secret) is stretched into a Fernet key.
+        derived = base64.urlsafe_b64encode(hashlib.sha256(("fernet:" + str(key)).encode()).digest())
+        return Fernet(derived)
 
 
 def encrypt(plaintext: str) -> str:

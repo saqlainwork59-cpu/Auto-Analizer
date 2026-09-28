@@ -40,7 +40,12 @@ async def register(body: RegisterIn, request: Request, response: Response, sessi
     email = body.email.lower()
     if (await session.execute(select(User).where(func.lower(User.email) == email))).scalar_one_or_none():
         raise HTTPException(409, detail="An account with this email already exists")
-    user = User(email=email, password_hash=hash_password(body.password), display_name=body.display_name, role="user",
+    role = "user"
+    boot = get_settings().bootstrap_admin_email.strip().lower()
+    if boot and email == boot:
+        has_admin = (await session.execute(select(func.count()).select_from(User).where(User.role == "admin"))).scalar()
+        role = "admin" if not has_admin else "user"
+    user = User(email=email, password_hash=hash_password(body.password), display_name=body.display_name, role=role,
                 settings={"theme": "system", "default_timeframe": "1h"})
     session.add(user)
     await session.flush()

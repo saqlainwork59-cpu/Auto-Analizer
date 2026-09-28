@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     refresh_token_days: int = 14
     cookie_secure: bool = False
     cookie_domain: str | None = None
+    # The first account registered with this email becomes administrator (only while no admin exists).
+    bootstrap_admin_email: str = ""
     max_failed_logins: int = 5
     lockout_minutes: int = 15
 
@@ -71,6 +73,15 @@ class Settings(BaseSettings):
     # Hard, deploy-time kill switch. Even when true, execution also requires an admin
     # flag, a per-user opt-in with password re-authentication and a per-order confirmation.
     broker_execution_enabled: bool = False
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, v: str) -> str:
+        """Accept the plain URLs that hosts such as Railway/Heroku/Render provide and use the asyncpg driver."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+asyncpg://" + v[len(prefix):]
+        return v
 
     @field_validator("app_env")
     @classmethod

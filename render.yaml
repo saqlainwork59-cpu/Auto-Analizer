@@ -1,11 +1,20 @@
 # Render Blueprint - free-tier deployment of Parallax (website + API/worker + Redis).
 #
-# Database: a free Neon Postgres (https://neon.tech, region AWS US West 2 / Oregon). Render's own
-# free Postgres is deleted after 30 days, Neon's free plan does not expire. When Render asks for
-# DATABASE_URL, paste the Neon connection string (postgresql://...).
+# Database: Render's free Postgres (wired in automatically). NOTE: Render deletes free databases
+# 30 days after creation (14-day grace period). To keep the data, either upgrade the database or
+# point DATABASE_URL of parallax-api at a non-expiring free Postgres such as Neon (https://neon.tech);
+# Neon/pooled/sslmode URLs are handled by app/config.py.
 #
 # Free web services sleep after 15 minutes without visitors and need about a minute to wake up.
 # While the API sleeps, the worker (live prices, signal engine) is paused as well.
+databases:
+  - name: parallax-db
+    plan: free
+    region: oregon
+    databaseName: parallax
+    user: parallax
+    ipAllowList: [] # internal connections only
+
 services:
   - type: keyvalue
     name: parallax-redis
@@ -27,7 +36,9 @@ services:
         - frontend/**
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: parallax-db
+          property: connectionString
       - key: REDIS_URL
         fromService:
           type: keyvalue

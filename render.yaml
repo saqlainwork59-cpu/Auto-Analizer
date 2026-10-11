@@ -1,0 +1,74 @@
+# Render Blueprint - free-tier deployment of Parallax (website + API/worker + Redis).
+#
+# Database: a free Neon Postgres (https://neon.tech, region AWS US West 2 / Oregon). Render's own
+# free Postgres is deleted after 30 days, Neon's free plan does not expire. When Render asks for
+# DATABASE_URL, paste the Neon connection string (postgresql://...).
+#
+# Free web services sleep after 15 minutes without visitors and need about a minute to wake up.
+# While the API sleeps, the worker (live prices, signal engine) is paused as well.
+services:
+  - type: keyvalue
+    name: parallax-redis
+    plan: free
+    region: oregon
+    ipAllowList: [] # internal connections only
+
+  - type: web
+    name: parallax-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: sh ./render-start.sh # migrations + worker + API in one free instance
+    healthCheckPath: /api/health
+    buildFilter:
+      ignoredPaths:
+        - frontend/**
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: parallax-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: APP_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: BROKER_EXECUTION_ENABLED
+        value: "false"
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: saqlainwork59@gmail.com
+      - key: PUBLIC_APP_URL
+        value: https://parallax-web.onrender.com
+      - key: CORS_ORIGINS
+        value: https://parallax-web.onrender.com
+      # Binance.com refuses US-hosted servers; Binance.US serves the same public market data.
+      - key: BINANCE_REST_URL
+        value: https://api.binance.us
+      - key: BINANCE_WS_URL
+        value: wss://stream.binance.us:9443
+
+  - type: web
+    name: parallax-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /login
+    buildFilter:
+      paths:
+        - frontend/**
+    envVars:
+      # Build-time: the /api proxy target is compiled into the Next.js build.
+      - key: API_INTERNAL_URL
+        value: https://parallax-api.onrender.com
+      - key: PORT
+        value: "3000"

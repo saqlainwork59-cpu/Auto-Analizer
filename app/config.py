@@ -80,8 +80,37 @@ class Settings(BaseSettings):
         """Accept the plain URLs that hosts such as Railway/Heroku/Render provide and use the asyncpg driver."""
         for prefix in ("postgres://", "postgresql://"):
             if v.startswith(prefix):
-                return "postgresql+asyncpg://" + v[len(prefix):]
+                v = "postgresql+asyncpg://" + v[len(prefix):]
+                break
+        if v.startswith("postgresql+asyncpg://") and "?" in v:
+            # libpq-style options (Neon, Supabase, Render...) are not understood by asyncpg:
+            # translate sslmode -> ssl and drop libpq-only keys such as channel_binding.
+            from urllib.parse import parse_qsl, urlencode
+
+            base, query = v.split("?", 1)
+            out = []
+            for k, val in parse_qsl(query, keep_blank_values=True):
+                if k == "sslmode":
+                    out.append(("ssl", val))
+                elif k in {"channel_binding", "options", "target_session_attrs"}:
+                    continue
+                else:
+                    out.append((k, val))
+            v = base + ("?" + urlencode(out) if out else "")
         return v
+
+    @field_validator("public_app_url", "cors_origins")
+    @classmethod
+    def _with_scheme(cls, v: str) -> str:
+        """Allow bare hostnames (e.g. injected by a hosting blueprint): default them to https."""
+        parts = []
+        for o in v.split(","):
+            o = o.strip().rstrip("/")
+            if o and "://" not in o:
+                o = "https://" + o
+            if o:
+                parts.append(o)
+        return ",".join(parts)
 
     @field_validator("app_env")
     @classmethod

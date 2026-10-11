@@ -24,7 +24,6 @@ from app.data.feeds import FeedManager
 from app.data.providers.base import CandleDTO
 from app.db import init_engine, session_factory
 from app.logging_setup import setup_logging
-from app.ml.jobs import run_job
 from app.models import Asset, Backtest, ResearchJob, utcnow
 from app.paper.service import check_protective_orders
 from app.seed import ensure_seed
@@ -117,6 +116,8 @@ class Worker:
                         job_id = job.id
                         job.status = "running"
                         await s.commit()
+                        from app.ml.jobs import run_job  # lazy: keeps sklearn out of memory until a research job runs
+
                         result = await run_job(s, job)
                         job.status, job.result, job.finished_at = "done", _json_safe(result), utcnow()
                         await s.commit()

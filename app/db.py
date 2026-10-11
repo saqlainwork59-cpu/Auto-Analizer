@@ -29,6 +29,15 @@ def init_engine(url: str | None = None) -> AsyncEngine:
     kwargs: dict = {"pool_pre_ping": True}
     if url.startswith("postgresql"):
         kwargs.update(pool_size=10, max_overflow=20)
+        if "-pooler." in url or "pgbouncer=true" in url:
+            # PgBouncer in transaction mode (e.g. Neon's pooled endpoint) cannot keep prepared
+            # statements between transactions: disable asyncpg's statement cache.
+            from uuid import uuid4
+
+            url = url.replace("&pgbouncer=true", "").replace("?pgbouncer=true&", "?").replace("?pgbouncer=true", "")
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}prepared_statement_cache_size=0"
+            kwargs["connect_args"] = {"statement_cache_size": 0, "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"}
     _engine = create_async_engine(url, **kwargs)
     _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine

@@ -3,11 +3,9 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from app import models  # noqa: F401 - register tables
 from app.config import get_settings
-from app.db import Base
+from app.db import Base, init_engine
 
 config = context.config
 if config.config_file_name is not None:
@@ -28,7 +26,7 @@ def do_run(connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(get_settings().database_url)
+    engine = init_engine()  # same driver options as the app (e.g. PgBouncer-safe statement cache)
     async with engine.connect() as conn:
         await conn.run_sync(do_run)
     await engine.dispose()

@@ -129,6 +129,12 @@ class Bus:
 
     async def connect(self) -> None:
         settings = get_settings()
+        if not settings.redis_url.strip():
+            if settings.is_production and not settings.embedded_worker:
+                raise RuntimeError("REDIS_URL is required in production unless EMBEDDED_WORKER=true")
+            log.info("REDIS_URL not set; using in-process bus (API and worker share one process)")
+            self._backend, self.kind = _MemoryBackend(), "memory"
+            return
         try:
             backend = _RedisBackend(settings.redis_url)
             await asyncio.wait_for(backend.ping(), timeout=3)

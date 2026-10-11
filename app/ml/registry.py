@@ -5,15 +5,17 @@ import hashlib
 import logging
 import os
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-import joblib
 import numpy as np
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.ml.pipeline import TrainResult
 from app.models import ModelVersion, utcnow
+
+if TYPE_CHECKING:  # sklearn is heavy; only import it where a model is trained or loaded
+    from app.ml.pipeline import TrainResult
 
 log = logging.getLogger(__name__)
 MODEL_NAME = "setup-outcome-classifier"
@@ -33,6 +35,8 @@ async def register(session: AsyncSession, res: TrainResult, params: dict, notes:
     d = get_settings().model_dir
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"{MODEL_NAME}-v{version}.joblib")
+    import joblib
+
     joblib.dump({"model": res.model, "feature_names": res.feature_names, "kind": res.kind}, path)
     row = ModelVersion(
         name=MODEL_NAME, version=version, status="candidate" if res.passes_gate else "rejected",
@@ -81,6 +85,8 @@ async def production_scorer(session: AsyncSession) -> tuple[Callable[[dict], flo
             if _sha256(row.artifact_path) != row.artifact_sha256:
                 log.error("model %s artifact hash mismatch; refusing to load", row.id)
                 return None, None
+            import joblib
+
             blob = joblib.load(row.artifact_path)
             _cache[row.id] = (blob["model"], blob["feature_names"])
         except (OSError, KeyError, ValueError) as exc:

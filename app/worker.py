@@ -158,10 +158,11 @@ class Worker:
                 log.error("lost feed lock; exiting so the supervisor restarts us")
                 os._exit(1)
 
-    async def run(self) -> None:
-        init_engine()
-        await bus.connect()
-        await ensure_seed()
+    async def run(self, embedded: bool = False) -> None:
+        if not embedded:  # inside the API process the engine, bus and seed data are already set up
+            init_engine()
+            await bus.connect()
+            await ensure_seed()
         await system_log("INFO", "worker", f"worker {WORKER_ID} started (bus={bus.kind})")
         jobs = [self.heartbeat(), self.backtest_loop(), self.research_loop(), self.outcome_loop()]
         try:

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://parallax:parallax@localhost:5432/parallax"
     redis_url: str = "redis://localhost:6379/0"
+    # Run the background worker inside the API process (single-instance free hosting). With an
+    # empty REDIS_URL the in-process event bus is then used instead of Redis.
+    embedded_worker: bool = False
 
     # --- auth -------------------------------------------------------------
     access_token_minutes: int = 15

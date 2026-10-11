@@ -1,6 +1,8 @@
 """FastAPI application factory."""
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -34,8 +36,29 @@ async def lifespan(app: FastAPI):
         from app.seed import ensure_seed
 
         await ensure_seed()
+    worker_task = None
+    if s.embedded_worker and s.app_env != "test":
+        worker_task = asyncio.create_task(_embedded_worker(), name="embedded-worker")
     yield
+    if worker_task is not None:
+        worker_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await worker_task
     await get_engine().dispose()
+
+
+async def _embedded_worker() -> None:
+    """Supervise the in-process worker: restart it if it ever stops with an error."""
+    from app.worker import Worker
+
+    while True:
+        try:
+            await Worker().run(embedded=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logging.getLogger("parallax.worker").exception("embedded worker crashed; restarting in 10s")
+        await asyncio.sleep(10)
 
 
 def create_app() -> FastAPI:

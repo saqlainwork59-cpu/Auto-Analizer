@@ -102,6 +102,12 @@ class Settings(BaseSettings):
             v = base + ("?" + urlencode(out) if out else "")
         return v
 
+    @field_validator("redis_url")
+    @classmethod
+    def _optional_redis(cls, v: str) -> str:
+        """REDIS_URL=none (or memory) selects the in-process bus; dashboards often reject empty values."""
+        return "" if v.strip().lower() in {"", "none", "memory", "memory://"} else v.strip()
+
     @field_validator("public_app_url", "cors_origins")
     @classmethod
     def _with_scheme(cls, v: str) -> str:
